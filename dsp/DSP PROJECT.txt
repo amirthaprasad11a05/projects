@@ -1,0 +1,73 @@
+DSP PROJECT
+
+clc;
+clear all;
+close all;
+
+% Reading and displaying of original image
+name = input('Enter the image name (with extension): ', 's');
+A = imread(name);
+subplot(3, 2, 1);
+imshow(A);
+title('Original image');
+
+% Convert RGBA to RGB if image has alpha channel
+if size(A, 3) == 4
+    A = A(:, :, 1:3);
+end
+
+% Converting original image into grayscale and plotting it
+B = rgb2gray(A);
+subplot(3, 2, 2);
+imshow(B);
+title('Original to grayscale image');
+
+% n1, n2 shows the resolution of image
+b = double(B);
+[n1, n2] = size(b);
+
+% plotting grayscale image
+subplot(3, 2, 3);
+imshow(B);
+title('Grayscale image');
+
+% Converting Grayscale image to RGB image and plotting it
+C = gray2ind(B);
+subplot(3, 2, 4);
+imshow(C);
+title('Grayscale to RGB image');
+
+% plotting histogram of grayscale image
+subplot(3, 2, 5);
+imhist(B);
+title('Histogram of grayscale image');
+
+% Compression of image
+rate = input('Enter compression quality % (1 < x < 100): ');
+original = double(A) / 255;
+rate = 1000 * rate;
+
+for i = 1:3
+    im = original(:,:,i);
+    img_dct = dct2(im);
+    img_pow = (img_dct).^2;
+    img_pow = img_pow(:);
+    [B, index] = sort(img_pow);
+    B = flipud(B);
+    index = flipud(index);
+    compressed_dct = zeros(size(im));
+    for k = 1:rate
+        compressed_dct(index(k)) = img_dct(index(k));
+    end
+    img_dct = idct2(compressed_dct);
+    RGB(:,:,i) = img_dct;
+end
+
+% plotting compressed image
+subplot(3, 2, 6);
+imshow(RGB);
+title('DCT compressed image');
+
+% Writing compressed image to file
+[~, name, ext] = fileparts(name);
+imwrite(RGB, ['compressed_' name '.jpg']);
