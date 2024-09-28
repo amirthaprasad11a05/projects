@@ -1,0 +1,54 @@
+1. PULSE CODE MODULATION:
+
+clc
+clear all
+%original signal
+fm=input('Enter the input frequency');
+n=input('Enter no of bits for PCM');
+A=2;
+t=0:0.01:1;
+x=A*cos(2*pi*fm*t);
+% sampling
+fs=2*fm;
+ts=0:.01:1;
+xs=A*cos(2*pi*fm*ts);
+% quantisation
+xl=xs+A;
+xl=xl/(2*A);
+L=(-1+2^n);
+xl=L*xl;
+xq=round(xl);
+% encodiing
+y=[];
+for i=1:length(xq)
+    d=dec2bin(xq(i),n);
+    y=[y double(d)-48];
+end
+
+figure(1)
+plot(t,x,'linewidth',2);
+title('Sampling','fontsize',14);
+ylabel('Amplitude');
+xlabel('Time');
+hold on;
+stem(ts,xs,'r','linewidth',2);
+hold off
+
+figure(2)
+stem(ts,xl-(L/2),'linewidth',2);
+title('quantization','fontsize',14);
+ylabel('levels L');
+xlabel('samples');
+hold on;
+stem(ts,xq-(L/2),'r','Linewidth',2);
+plot(ts,xq-(L/2),'-k');
+hold off
+legend('sampled signal','quantised signal');
+
+figure(3)
+stairs([y y(length(y))],'linewidth',2);
+title('encoded waveform','fontsize',14);
+ylabel('binary signal');
+xlabel('bits');
+axis([0 length(y) -1 2]);
+grid on;
