@@ -10,5 +10,8 @@
     5.	Implements a DCT-based image compression algorithm on the resized image.
     6.	Displays the compressed image and saves it as a JPEG file with a filename indicating the compression factor.
 3. Analog Communication project - Bluetooth Home Automation.
-4. Digital Communication-MATLAB codes and performance of polar codes in VLC.
+4. Digital Communication-
+   1. MATLAB codes for various modulation techniques like Pulse Code Modulation, Shift Kying (Amplitude, Phase and Frequency), Determining the Power Spectral Density and Duobinary       
+      Coding
+   2. Analysing the Performance of Polar Codes in VLC using BER and comparing decoding techniques like Successive Cancellation and List Decoding.
 5. VLSI- CADENCE VIRTUOSO schematics and layouts of various logic circuits and implementing NOVEL FAST ADDER FOR 8 BIT.
