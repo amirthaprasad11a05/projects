@@ -9,5 +9,6 @@
     4.	Resizes the image based on user input.
     5.	Implements a DCT-based image compression algorithm on the resized image.
     6.	Displays the compressed image and saves it as a JPEG file with a filename indicating the compression factor.
-3. Analog Communication project - Bluetooth Home Automation
-4. Digital Communication-MATLAB codes
+3. Analog Communication project - Bluetooth Home Automation.
+4. Digital Communication-MATLAB codes.
+5. VLSI- CADENCE VIRTUOSO schematics and layouts of various logic circuits.
