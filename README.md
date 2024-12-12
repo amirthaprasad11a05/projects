@@ -11,4 +11,4 @@
     6.	Displays the compressed image and saves it as a JPEG file with a filename indicating the compression factor.
 3. Analog Communication project - Bluetooth Home Automation.
 4. Digital Communication-MATLAB codes and performance of polar codes in VLC.
-5. VLSI- CADENCE VIRTUOSO schematics and layouts of various logic circuits.
+5. VLSI- CADENCE VIRTUOSO schematics and layouts of various logic circuits and implementing NOVEL FAST ADDER FOR 8 BIT.
