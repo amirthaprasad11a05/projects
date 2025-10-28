@@ -1,0 +1,170 @@
+# KA 1 FINAL
+
+# Predict House Prices
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split,GridSearchCV
+from sklearn.preprocessing import StandardScaler,LabelEncoder
+from sklearn.metrics import mean_squared_error,r2_score
+from sklearn.linear_model import LinearRegression,Lasso
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor,GradientBoostingRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from xgboost import XGBRegressor
+import warnings
+warnings.filterwarnings("ignore")
+
+# LOAD DATA
+folder="/kaggle/input/mlp-term-3-2025-kaggle-assignment-1"
+train=pd.read_csv(folder+"/train.csv")
+test=pd.read_csv(folder+"/test.csv")
+sub=pd.read_csv(folder+"/sample_submission.csv")
+print("Train shape:",train.shape,"Test shape:",test.shape)
+
+# DATA TYPES
+num_cols=train.select_dtypes(include=[np.number]).columns.tolist()
+cat_cols=train.select_dtypes(exclude=[np.number]).columns.tolist()
+print("\nNumeric cols:",num_cols)
+print("Categorical cols:",cat_cols)
+
+# DESCRIPTIVE STATS
+desc=train[num_cols].describe().T[['min','max','mean','50%']]
+desc.rename(columns={'50%':'median'},inplace=True)
+print("\nDescriptive Stats:\n",desc)
+
+# MISSING VALUES
+miss=train.isnull().sum()
+miss=miss[miss>0].sort_values(ascending=False)
+print("\nMissing Values:\n",miss)
+
+# IMPUTE MISSING
+train_num_cols = train.select_dtypes(include=[np.number]).columns.tolist()  # includes 'price'
+test_num_cols = [c for c in train_num_cols if c in test.columns]            # only numeric cols in test
+for c in train_num_cols: train[c] = train[c].fillna(train[c].median())
+for c in cat_cols: train[c] = train[c].fillna(train[c].mode()[0])
+for c in test_num_cols: test[c] = test[c].fillna(test[c].median())
+for c in cat_cols: test[c] = test[c].fillna(test[c].mode()[0])
+print("Missing after imputation:",train.isnull().sum().sum())
+
+# DUPLICATES
+dup=train.duplicated().sum()
+print("\nDuplicates:",dup)
+if dup>0:
+    train=train.drop_duplicates()
+    print("Duplicates removed. New shape:",train.shape)
+
+# OUTLIERS
+def out_iqr(d,col):
+    q1=d[col].quantile(0.25);q3=d[col].quantile(0.75)
+    iqr=q3-q1;low=q1-1.5*iqr;high=q3+1.5*iqr
+    return d[(d[col]<low)|(d[col]>high)].shape[0]
+out_count={c:out_iqr(train,c) for c in train_num_cols}
+out_count=pd.Series(out_count).sort_values(ascending=False)
+print("\nOutlier counts:\n",out_count)
+
+# VISUALIZATIONS
+plt.figure(figsize=(6,4))
+sns.heatmap(train[train_num_cols].corr(),annot=True,cmap='coolwarm')
+plt.title("Correlation Heatmap")
+plt.show()
+plt.figure(figsize=(6,4))
+sns.histplot(train['price'],bins=40,kde=True,color='teal')
+plt.title("Distribution of Price")
+plt.show()
+plt.figure(figsize=(6,4))
+sns.boxplot(x='bath',y='price',data=train)
+plt.title("Price vs Bath")
+plt.show()
+print("\nInsights:")
+print("1. Strong positive correlation between total_sqft, bath, and price.")
+print("2. Price distribution is right-skewed — most houses priced lower, few very high.")
+print("3. Houses with more bathrooms tend to have higher prices.")
+
+# ENCODING + SCALING
+for c in cat_cols:
+    le=LabelEncoder()
+    full=pd.concat([train[c],test[c]],axis=0).astype(str)
+    le.fit(full)
+    train[c]=le.transform(train[c].astype(str))
+    test[c]=le.transform(test[c].astype(str))
+num_cols_no_target = [c for c in train_num_cols if c != 'price']
+sc=StandardScaler()
+train[num_cols_no_target]=sc.fit_transform(train[num_cols_no_target])
+test_cols_to_scale = [c for c in num_cols_no_target if c in test.columns]
+test[test_cols_to_scale]=sc.transform(test[test_cols_to_scale])
+print("\nScaling and Encoding completed.")
+
+# MODEL BUILDING
+X=train.drop('price',axis=1)
+y=train['price']
+X_train,X_val,y_train,y_val=train_test_split(X,y,test_size=0.2,random_state=42)
+models={
+    'LinearRegression':LinearRegression(),
+    'DecisionTree':DecisionTreeRegressor(random_state=42),
+    'RandomForest':RandomForestRegressor(random_state=42),
+    'GradientBoosting':GradientBoostingRegressor(random_state=42),
+    'KNN':KNeighborsRegressor(),
+    'Lasso':Lasso(alpha=0.1),
+    'XGB':XGBRegressor(random_state=42,verbosity=0)
+}
+results=[]
+for name,m in models.items():
+    m.fit(X_train,y_train)
+    p=m.predict(X_val)
+    rmse=np.sqrt(mean_squared_error(y_val,p))
+    r2=r2_score(y_val,p)
+    results.append([name,rmse,r2])
+res_df=pd.DataFrame(results,columns=['Model','RMSE','R2'])
+print("\nModel Performance Before Tuning:\n",res_df.sort_values('RMSE'))
+
+# HYPERPARAMETER TUNING (3 MODELS)
+tuned=[]
+rf_params={'n_estimators':[100],'max_depth':[10,None]}
+rf_grid=GridSearchCV(RandomForestRegressor(random_state=42),rf_params,cv=3,scoring='neg_root_mean_squared_error')
+rf_grid.fit(X_train,y_train)
+best_rf=rf_grid.best_estimator_
+rf_pred=best_rf.predict(X_val)
+rf_rmse=np.sqrt(mean_squared_error(y_val,rf_pred));rf_r2=r2_score(y_val,rf_pred)
+tuned.append(['RandomForest_Tuned',rf_rmse,rf_r2])
+print("RF best params:",rf_grid.best_params_)
+gb_params={'n_estimators':[100],'learning_rate':[0.1],'max_depth':[3,5]}
+gb_grid=GridSearchCV(GradientBoostingRegressor(random_state=42),gb_params,cv=3,scoring='neg_root_mean_squared_error')
+gb_grid.fit(X_train,y_train)
+best_gb=gb_grid.best_estimator_
+gb_pred=best_gb.predict(X_val)
+gb_rmse=np.sqrt(mean_squared_error(y_val,gb_pred));gb_r2=r2_score(y_val,gb_pred)
+tuned.append(['GradientBoosting_Tuned',gb_rmse,gb_r2])
+print("GB best params:",gb_grid.best_params_)
+xgb_params={'n_estimators':[100],'learning_rate':[0.1],'max_depth':[3,5]}
+xgb_grid=GridSearchCV(XGBRegressor(random_state=42,verbosity=0),xgb_params,cv=3,scoring='neg_root_mean_squared_error')
+xgb_grid.fit(X_train,y_train)
+best_xgb=xgb_grid.best_estimator_
+xgb_pred=best_xgb.predict(X_val)
+xgb_rmse=np.sqrt(mean_squared_error(y_val,xgb_pred));xgb_r2=r2_score(y_val,xgb_pred)
+tuned.append(['XGB_Tuned',xgb_rmse,xgb_r2])
+print("XGB best params:",xgb_grid.best_params_)
+
+# COMPARISON
+tuned_df=pd.DataFrame(tuned,columns=['Model','RMSE','R2'])
+final_res=pd.concat([res_df,tuned_df]).sort_values('RMSE').reset_index(drop=True)
+print("\nFinal Model Comparison:\n",final_res)
+best_model_name=final_res.iloc[0]['Model']
+print("\nBest Model:",best_model_name)
+
+# SUBMISSION
+if "Tuned" in best_model_name:
+    model_dict={'RandomForest_Tuned':best_rf,'GradientBoosting_Tuned':best_gb,'XGB_Tuned':best_xgb}
+    best_model=model_dict[best_model_name]
+else:
+    best_model=models[best_model_name]
+best_model.fit(X,y)
+pred_test=best_model.predict(test)
+submission=pd.DataFrame({'id':sub['id'],'price':pred_test})
+submission.to_csv('submission.csv',index=False)
+print("\nSubmission file created.")
+# View the submission file
+print("\nSubmission File:")
+print(submission.head(20))
