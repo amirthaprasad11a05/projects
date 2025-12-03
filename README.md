@@ -15,3 +15,6 @@
       Coding
    2. Analysing the Performance of Polar Codes in VLC using BER and comparing decoding techniques like Successive Cancellation and List Decoding.
 5. VLSI- CADENCE VIRTUOSO schematics and layouts of various logic circuits and implementing NOVEL FAST ADDER FOR 8 BIT.
+6. Machine Learning Practice - Kaggle Assignments
+   1. KA1 - The task of this assignment is to predict the price of Houses. A training dataset and a test dataset are provided. 
+   2. KA2 - The task of this assignment is to predict whether a customer will cancel their hotel booking. A training dataset and a test dataset are provided..
