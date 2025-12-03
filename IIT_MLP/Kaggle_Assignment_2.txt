@@ -1,0 +1,158 @@
+# KA2 Final
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, StackingClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, f1_score
+
+# Load data
+train = pd.read_csv("/kaggle/input/mlp-term-3-2025-kaggle-assignment-2/train.csv")
+test = pd.read_csv("/kaggle/input/mlp-term-3-2025-kaggle-assignment-2/test.csv")
+sample_sub = pd.read_csv("/kaggle/input/mlp-term-3-2025-kaggle-assignment-2/sample_submission.csv")
+
+# Identify numerical and categorical columns
+num_cols = ['adults','children','weekends','weekdays','lead_time','repeat','price','requests']
+cat_cols = ['meal_type','room_type','arrival','segment']
+
+# Data types
+print("Data types:\n", train.dtypes)
+
+# Descriptive stats
+print("\nDescriptive Statistics:\n", train[num_cols + ['booking_status']].describe())
+
+# Missing values
+print("\nMissing Values:\n", train.isnull().sum())
+
+# Handle missing values
+for c in num_cols:
+    train[c] = train[c].fillna(train[c].median())
+    test[c] = test[c].fillna(train[c].median())
+for c in cat_cols:
+    train[c] = train[c].fillna(train[c].mode()[0])
+    test[c] = test[c].fillna(train[c].mode()[0])
+print("\nMissing after imputation:\n", train.isnull().sum())
+
+# Duplicates
+print("\nDuplicates in train:", train.duplicated().sum())
+
+# Outlier detection
+for c in num_cols:
+    Q1 = train[c].quantile(0.25)
+    Q3 = train[c].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers = train[(train[c] < Q1 - 1.5*IQR) | (train[c] > Q3 + 1.5*IQR)]
+    print(f"Outliers in {c}: {outliers.shape[0]}")
+
+# Visualizations
+plt.figure(figsize=(6,4))
+sns.histplot(train['price'], bins=50, kde=True)
+plt.title("Price Distribution")
+plt.show()
+
+plt.figure(figsize=(6,4))
+sns.countplot(x='booking_status', data=train)
+plt.title("Booking Status Count")
+plt.show()
+
+plt.figure(figsize=(6,4))
+sns.boxplot(x='meal_type', y='price', data=train)
+plt.title("Price by Meal Type")
+plt.show()
+
+plt.figure(figsize=(8,6))
+sns.heatmap(train[num_cols + ['booking_status']].corr(), annot=True, cmap='coolwarm')
+plt.title("Correlation Heatmap")
+plt.show()
+
+# Feature engineering
+train['total_people'] = train['adults'] + train['children']
+test['total_people'] = test['adults'] + test['children']
+train['price_per_person'] = train['price'] / (train['total_people'] + 1)
+test['price_per_person'] = test['price'] / (test['total_people'] + 1)
+
+# Encode categorical features
+for c in cat_cols:
+    le = LabelEncoder()
+    full = pd.concat([train[c], test[c]], axis=0)
+    le.fit(full)
+    train[c] = le.transform(train[c])
+    test[c] = le.transform(test[c])
+
+# Scale numerical features
+scaler = StandardScaler()
+train[num_cols] = scaler.fit_transform(train[num_cols])
+test[num_cols] = scaler.transform(test[num_cols])
+
+# Prepare features and target
+feature_cols = num_cols + cat_cols + ['total_people','price_per_person']
+X = train[feature_cols]
+y = train['booking_status']
+X_test = test[feature_cols]
+
+# Train/validation split
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=1, stratify=y)
+
+# Safety: fill any remaining NaNs
+X_train = X_train.fillna(X_train.median())
+X_val = X_val.fillna(X_val.median())
+X_test = X_test.fillna(X_test.median())
+
+# Base models
+models = {
+    "LogisticRegression": LogisticRegression(max_iter=500),
+    "DecisionTree": DecisionTreeClassifier(random_state=1),
+    "RandomForest": RandomForestClassifier(random_state=1),
+    "GradientBoosting": GradientBoostingClassifier(random_state=1),
+    "KNN": KNeighborsClassifier(),
+    "XGB": XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=1),
+    "AdaBoost": AdaBoostClassifier(random_state=1)
+}
+
+# Train models and evaluate
+results = []
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    pred_val = model.predict(X_val)
+    acc = accuracy_score(y_val, pred_val)
+    f1 = f1_score(y_val, pred_val)
+    results.append([name, acc, f1])
+
+results_df = pd.DataFrame(results, columns=['Model','Accuracy','F1_Score']).sort_values(by='F1_Score', ascending=False)
+print("\nModel Performance on Validation Set:\n", results_df)
+
+# Hyperparameter tuning for 3 models
+grid_rf = GridSearchCV(RandomForestClassifier(random_state=1), {'n_estimators':[100,200], 'max_depth':[5,10]}, cv=3, scoring='f1')
+grid_gb = GridSearchCV(GradientBoostingClassifier(random_state=1), {'n_estimators':[100,200],'max_depth':[3,5],'learning_rate':[0.05,0.1]}, cv=3, scoring='f1')
+grid_xgb = GridSearchCV(XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=1), 
+                        {'n_estimators':[100,200],'max_depth':[3,5],'learning_rate':[0.05,0.1]}, cv=3, scoring='f1')
+
+grid_rf.fit(X_train, y_train)
+grid_gb.fit(X_train, y_train)
+grid_xgb.fit(X_train, y_train)
+
+# Stacking
+stack = StackingClassifier(
+    estimators=[('rf', grid_rf.best_estimator_), ('gb', grid_gb.best_estimator_), ('xgb', grid_xgb.best_estimator_)],
+    final_estimator=LogisticRegression(),
+    cv=3
+)
+stack.fit(X_train, y_train)
+pred_val_stack = stack.predict(X_val)
+print("\nStacked Model F1 Score:", f1_score(y_val, pred_val_stack))
+
+# Predict on test
+pred_test = stack.predict(X_test)
+
+# Submission
+submission = pd.DataFrame({'id': test['id'], 'booking_status': pred_test})
+submission.to_csv('submission.csv', index=False)
+print("\nSubmission file created: submission.csv")
+print(submission.head(10))
